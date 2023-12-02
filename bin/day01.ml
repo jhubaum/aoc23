@@ -1,13 +1,4 @@
-let read_input filename : string list =
-  let lines = ref [] in
-  let channel = open_in filename in
-  try
-    while true; do
-      lines := input_line channel :: !lines
-    done; !lines
-  with End_of_file ->
-    close_in channel;
-    List.rev !lines;;
+
 
 let char_to_digit c = (Char.code c) - (Char.code '0');;
 
@@ -50,7 +41,7 @@ let calibration_value_sum extractor puzzle_input =
 
 let () = 
   print_string "Part 1: ";
-  (read_input "input/01.txt") |> (calibration_value_sum extract_digits) |> print_int |> print_newline;
+  (Aoc23.read_input "input/01.txt") |> (calibration_value_sum extract_digits) |> print_int |> print_newline;
 
   print_string "Part 2: ";
-  (read_input "input/01.txt") |> (calibration_value_sum extract_digits_with_words) |> print_int |> print_newline
+  (Aoc23.read_input "input/01.txt") |> (calibration_value_sum extract_digits_with_words) |> print_int |> print_newline
