@@ -27,3 +27,9 @@
  (name day05)
  (modules day05)
  (libraries aoc23 str))
+
+(executable
+ (public_name day06)
+ (name day06)
+ (modules day06)
+ (libraries aoc23 str))
