@@ -61,7 +61,7 @@ let find_enclosed_area input loop =
     match xdiff, ydiff with
     | -1, 1 -> 'F'
     | 1, 1 -> 'L'
-    | -1, -1 -> 'J'
+    | -1, -1 -> '7'
     | (x, y) -> failwith (sprintf "Unmatched start diff x=%d, y=%d" x y) in
   let sanitized_map = 
     let sanitize y x c = match c with
