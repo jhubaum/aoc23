@@ -42,71 +42,61 @@ let rec walk map (pos, direction) =
   apply @@ List.find_opt matches map;;
 
 
-let loop_length map start = 
+let find_loop map start = 
   let try_dir dir = walk map (apply_direction dir start) in
   match try_dir North with
-  | Some l -> List.length l
+  | Some l -> l
   | None -> match try_dir South with
-    | Some l -> List.length l
+    | Some l -> l
     | None -> match try_dir East with
-      | Some l -> List.length l
+      | Some l -> l
       | None -> failwith "No loop found";;
 
-module CoordSet = Set.Make(struct
-  type t = int * int
-  let compare = compare
-end);;
-
-(* Idea for part 2:
-  - find enclosed areas
-  - make sure that enclosed areas are not connected to the outside
-    - find the two points where the loop exits the enclosed area
-    - walk around the loop clockwise. For each tile, check if the
-      tile to the right is outside. If it is, discard the area
-*)
-let find_areas map width height =
-  let map = CoordSet.of_list @@ List.map fst map in
-  let areas = ref [] in
-  let insert_pos (x, y) =
-    let check_area area = CoordSet.mem (x-1, y) area || CoordSet.mem (x, y-1) area in
-    let rec iter_and_insert areas = match areas with
-    | [] -> [CoordSet.singleton (x, y)]
-    | area :: rest -> if check_area area 
-      then (CoordSet.add (x, y) area) :: (iter_and_insert rest) 
-      else area :: (iter_and_insert rest) in
-    areas := iter_and_insert !areas in
-  let merge_areas areas =
-    let intersects lhs rhs = CoordSet.inter lhs rhs <> CoordSet.empty in
-    let rec step cur rest = 
-      let intersecting = List.filter (intersects cur) rest in
-      let remaining = List.filter (fun r -> not (intersects cur r)) rest in
-      let union = List.fold_left CoordSet.union cur intersecting in
-      match remaining with 
-      | [] -> [union]
-      | h :: t -> union :: (step h t) in
-    match areas with 
-    | h :: t -> step h t
-    | l -> l in
-  for x = 0 to width - 1 do
-    for y = 0 to height - 1 do
-      let pos = (x, y) in
-      if not (CoordSet.mem pos map) then insert_pos pos
-    done
-  done;
-  merge_areas !areas;;
-
-let print_areas areas = 
-  List.iteri (fun i area -> printf "Area %d: %s\n" i (String.concat ", " @@ List.map (fun (x, y) -> sprintf "(%d, %d)" x y) @@ CoordSet.elements area)) areas;;
-
-let find_enclosed_areas map width height =
-  print_areas @@ find_areas map width height;;
-
+let find_enclosed_area input loop = 
+  let pipe_char_for_start = 
+    let first = List.hd loop in
+    let last = List.nth loop (List.length loop - 2) in
+    let xdiff = fst first - fst last in
+    let ydiff = snd first - snd last in
+    match xdiff, ydiff with
+    | -1, 1 -> 'F'
+    | 1, 1 -> 'L'
+    | -1, -1 -> 'J'
+    | (x, y) -> failwith (sprintf "Unmatched start diff x=%d, y=%d" x y) in
+  let sanitized_map = 
+    let sanitize y x c = match c with
+    | '.' -> '.'
+    | 'S' -> pipe_char_for_start
+    | c -> if List.exists ((=) (x, y)) loop then c else '.' in
+    let sanitize_row y row = List.mapi (sanitize y) (List.init (String.length row) (String.get row)) in
+    List.mapi sanitize_row input in
+  let only_pipes = 
+    let rec replace_char_if_exists row to_replace char = match row with
+    | [] -> to_replace
+    | '-' :: t -> replace_char_if_exists t (to_replace @ ['-']) char
+    | c :: t when c = char -> '|' :: (List.init (List.length to_replace) (fun _ -> ' ')) @ convert_to_pipes t
+    | _ -> to_replace @ convert_to_pipes row
+    and convert_to_pipes row = match row with
+    | [] -> []
+    | 'L' :: t -> replace_char_if_exists t ['L'] '7'
+    | 'F' :: t -> replace_char_if_exists t ['F'] 'J'
+    | c :: t -> c :: convert_to_pipes t in
+    List.map convert_to_pipes sanitized_map in
+  let count_enclosed_area row = 
+    let rec step row inside = match row with
+    | [] -> 0
+    | '|' :: t -> step t (not inside)
+    | '.' :: t -> (if inside then 1 else 0) + step t inside
+    | _ :: t -> step t inside in
+    step row false in
+  let print_row row = print_endline @@ String.of_seq @@ List.to_seq @@ row in
+  List.iter print_row only_pipes;
+  List.fold_left (fun acc row -> acc + count_enclosed_area row) 0 only_pipes;;
 
 let () = 
-  let input = Aoc23.read_input "input/10_example.txt" in
+  let input = Aoc23.read_input "input/10.txt" in
   let map = parse_map input in
-  let width, height = String.length (List.hd input), List.length input in
-  let distance length = (length + 1) / 2 in
-  printf "Part 1: %d\n" (distance (loop_length map (start map)));
-  find_enclosed_areas map width height;
-  (*printf "Part 2: %d\n" (enclosed_by_loop map width height);;*)
+  let loop = find_loop map (start map) in
+  let loop_length = (List.length loop + 1) / 2 in
+  printf "Part 1: %d\n" loop_length;
+  printf "Part 2: %d\n" (find_enclosed_area input loop);;
