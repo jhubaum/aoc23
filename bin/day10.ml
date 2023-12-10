@@ -52,72 +52,54 @@ let loop_length map start =
       | Some l -> List.length l
       | None -> failwith "No loop found";;
 
-let replace_nth list n elem = List.mapi (fun i e -> if i = n then elem else e) list;;
-
-type status = Outside | Loop | Inside;;
-let invert_status status = match status with
-  | Outside -> Inside
-  | Inside -> Outside
-  | Loop -> Loop;;
-
-
 module CoordSet = Set.Make(struct
   type t = int * int
   let compare = compare
 end);;
 
-module StatusMap = struct 
-  (*type t = (status list) * int (* width *);;*)
+(* Idea for part 2:
+  - find enclosed areas
+  - make sure that enclosed areas are not connected to the outside
+    - find the two points where the loop exits the enclosed area
+    - walk around the loop clockwise. For each tile, check if the
+      tile to the right is outside. If it is, discard the area
+*)
+let find_areas map width height =
+  let map = CoordSet.of_list @@ List.map fst map in
+  let areas = ref [] in
+  let insert_pos (x, y) =
+    let check_area area = CoordSet.mem (x-1, y) area || CoordSet.mem (x, y-1) area in
+    let rec iter_and_insert areas = match areas with
+    | [] -> [CoordSet.singleton (x, y)]
+    | area :: rest -> if check_area area 
+      then (CoordSet.add (x, y) area) :: (iter_and_insert rest) 
+      else area :: (iter_and_insert rest) in
+    areas := iter_and_insert !areas in
+  let merge_areas areas =
+    let intersects lhs rhs = CoordSet.inter lhs rhs <> CoordSet.empty in
+    let rec step cur rest = 
+      let intersecting = List.filter (intersects cur) rest in
+      let remaining = List.filter (fun r -> not (intersects cur r)) rest in
+      let union = List.fold_left CoordSet.union cur intersecting in
+      match remaining with 
+      | [] -> [union]
+      | h :: t -> union :: (step h t) in
+    match areas with 
+    | h :: t -> step h t
+    | l -> l in
+  for x = 0 to width - 1 do
+    for y = 0 to height - 1 do
+      let pos = (x, y) in
+      if not (CoordSet.mem pos map) then insert_pos pos
+    done
+  done;
+  merge_areas !areas;;
 
-  let empty width height = List.init (width * height) (fun _ -> Outside), width;;
+let print_areas areas = 
+  List.iteri (fun i area -> printf "Area %d: %s\n" i (String.concat ", " @@ List.map (fun (x, y) -> sprintf "(%d, %d)" x y) @@ CoordSet.elements area)) areas;;
 
-  let get (x, y) (status_map, width) = List.nth status_map (y * width + x);;
-
-  let update (x, y) status (status_map, width) = 
-    printf "Updating (%d, %d) to %s\n" x y (match status with
-      | Outside -> "Outside"
-      | Inside -> "Inside"
-      | Loop -> "Loop");
-    replace_nth status_map (y * width + x) status, width;;
-
-  let rec calc_x (x, y) status_map invert = if x < 0 then Outside else
-    let status = get (x, y) status_map in
-    let inverted_status = if invert then invert_status status else status in
-    match status with 
-    | Loop -> calc_x (x - 1, y) status_map (not invert)
-    | _ -> inverted_status;;
-
-  let rec calc_y (x, y) status_map invert = if y < 0 then Outside else
-    let status = get (x, y) status_map in
-    let inverted_status = if invert then invert_status status else status in
-    match status with | Loop -> calc_y (x, y-1) status_map (not invert) | _ -> inverted_status;;
-
-  let insert (x, y) loop status_map = 
-    if CoordSet.mem (x, y) loop then update (x, y) Loop status_map else
-      let x_status = calc_x (x-1, y) status_map false in
-      let y_status = calc_y (x, y-1) status_map false in
-      if x_status = Inside && y_status = Inside 
-      then update (x, y) Inside status_map
-      else update (x, y) Outside status_map;;
-
-  let create width height loop = 
-    let rec create_row y x status_map = if x = width then status_map else
-      let status_map = insert (x, y) loop status_map in
-      create_row y (x + 1) status_map in
-    let rec create_map y status_map = if y = height then status_map else
-      let status_map = create_row y 0 status_map in
-      create_map (y + 1) status_map in
-    create_map 0 (empty width height);;
-
-  let count status status_map = List.length @@ List.filter (fun s -> s = status) (fst status_map);;
-    
-end;;
-
-let enclosed_by_loop map width height = 
-  let loop = CoordSet.of_list @@ List.map fst map in
-  let status_map = StatusMap.create width height loop in
-  StatusMap.count Inside status_map;;
-
+let find_enclosed_areas map width height =
+  print_areas @@ find_areas map width height;;
 
 
 let () = 
@@ -126,4 +108,5 @@ let () =
   let width, height = String.length (List.hd input), List.length input in
   let distance length = (length + 1) / 2 in
   printf "Part 1: %d\n" (distance (loop_length map (start map)));
-  printf "Part 2: %d\n" (enclosed_by_loop map width height);;
+  find_enclosed_areas map width height;
+  (*printf "Part 2: %d\n" (enclosed_by_loop map width height);;*)
